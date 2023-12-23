@@ -2,6 +2,7 @@
 
 static short check_boot_signature(MBR *mbr);
 static short is_valid_partition(partitionEntry partition);
+static short is_partition_active(partitionEntry partition);
 
 static short check_boot_signature(MBR *mbr)
 {
@@ -23,6 +24,13 @@ static short is_valid_partition(partitionEntry partition)
     
 }
 
+static short is_partition_active(partitionEntry partition)
+{
+    if (partition.partition_status == 0x80)
+        return 0;
+    else
+        return 1;
+}
 MBR *read_mbr(const char *path)
 {
     int mbr_fd;
@@ -204,4 +212,38 @@ short print_whole_mbr(MBR *mbr)
     print_ascii_header("BOOTSTRAP CODE : ");
     print_bootstrap_code(mbr, 1);
     print_all_partition_info(mbr);
+    print_summary(mbr);
+}
+short print_summary(MBR *mbr)
+{
+    uint8_t partition_number;
+
+    /* NULL pointer is also verified in the bellow function */
+    if (check_boot_signature(mbr) != 0)
+        return -1;
+    
+    print_ascii_header("SUMMARY : ");
+
+    printf("Partition Number\tBoot\tStart\t\tEnd\t\tSectors Number\tSize\t\tID\tType\n");
+    for (partition_number = 0; partition_number < MAX_PARTITION_COUNT; partition_number++) {
+        if (is_valid_partition(*(&mbr->partition1 + partition_number)) == 0) {
+            printf("%d\t\t\t", partition_number);
+            
+            if(is_partition_active(*(&mbr->partition1 + partition_number)) == 0)
+                printf("*\t");
+            else
+                printf(" \t");
+            
+            printf("%-4u\t\t", (&mbr->partition1 + partition_number)->partition_lba_first_absolute_sector);
+            printf("%-4u\t\t", (&mbr->partition1 + partition_number)->partition_lba_first_absolute_sector + (&mbr->partition1 + partition_number)->partition_number_of_sectors - 1);
+            printf("%-4u\t\t", (&mbr->partition1 + partition_number)->partition_number_of_sectors);
+            printf("%-4d\t", (&mbr->partition1 + partition_number)->partition_number_of_sectors * 512);
+            printf("%-02x\t", (&mbr->partition1 + partition_number)->partition_status);
+            printf(" \n");
+
+
+        }
+    }
+
+
 }

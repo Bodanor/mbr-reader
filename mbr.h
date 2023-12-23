@@ -56,4 +56,5 @@ void print_partition_info(partitionEntry partition);
 void print_all_partition_info(MBR *mbr);
 short print_whole_mbr(MBR *mbr);
 
+short print_summary(MBR *mbr);
 #endif
