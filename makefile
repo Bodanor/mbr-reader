@@ -1,7 +1,7 @@
 NAME        := mbr-reader
 
 CC=gcc
-CFLAGS=-Wall -Wextra -MMD -MP
+CFLAGS=-Wall -Wextra -MMD -MP -g
 
 C_SOURCE := $(wildcard *.c)
 OBJS        := $(C_SOURCE:%.c=%.o)

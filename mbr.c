@@ -16,7 +16,7 @@ static short check_boot_signature(MBR *mbr)
 
 static short is_valid_partition(partitionEntry partition)
 {
-    if (partition.partition_number_of_sectors == 0 || partition.partition_lba_first_absolute_sector == 0)
+    if (partition.partition_number_of_sectors == 0)
         return 1;
     else
         return 0;
@@ -133,7 +133,7 @@ short get_number_of_partition_entries(MBR *mbr)
     }
     
     for (i = 0; i < MAX_PARTITION_COUNT; i++) {
-        if (is_valid_partition(*(&mbr->partition1 + (i*sizeof(partitionEntry)))) == 0)
+        if (is_valid_partition(*(&mbr->partition1 + i)) == 0)
             valid_partition_count++;
     }
     
@@ -156,12 +156,12 @@ void print_partition_status(partitionEntry partition)
 }
 void print_lba_first_absolute_partition(partitionEntry partition)
 {
-    printf("\tLBA of the first absolute partition : %d\n", partition.partition_lba_first_absolute_sector);
+    printf("\tLBA of the first absolute partition : %u\n", partition.partition_lba_first_absolute_sector);
     printf("\n");
 }
 void print_partition_sector_count(partitionEntry partition)
 {
-    printf("\tSectors : %d\n", partition.partition_number_of_sectors);
+    printf("\tSectors : %u\n", partition.partition_number_of_sectors);
     printf("\n");
 }
 
@@ -190,7 +190,7 @@ void print_all_partition_info(MBR *mbr)
         if (is_valid_partition(*(&mbr->partition1 + partition_number)) == 0) {
             sprintf(title_buffer, "PARTITION NUMBER : %d", partition_number + 1); /* We want to start from partition 1 */
             print_ascii_header(title_buffer);
-            print_partition_info(*(&mbr->partition1 + (partition_number*sizeof(partitionEntry))));
+            print_partition_info(*(&mbr->partition1 + partition_number));
         }
     }
 }
