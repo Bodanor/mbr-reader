@@ -7,7 +7,6 @@ int main(int argc, char **argv)
 {
     MBR *mbr = NULL;
 
-    mbr = read_mbr("disk.img");
-    print_bootstrap_code(mbr, 1);
-
+    mbr = read_mbr("/dev/nvme0n1");
+    print_whole_mbr(mbr);
 }

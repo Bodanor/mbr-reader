@@ -1,25 +1,27 @@
 #include "mbr.h"
 
 static short check_boot_signature(MBR *mbr);
+static short is_valid_partition(partitionEntry partition);
 
-struct mbr_partition_entry_t {
-    uint8_t partition_status;
-    uint8_t partition_chs_first_absolute_sector[3];
-    uint8_t partition_type;
-    uint8_t partition_chs_last_absolute_sector[3];
-    uint32_t partition_lba_first_absolute_sector;
-    uint32_t partition_number_of_sectors;
+static short check_boot_signature(MBR *mbr)
+{
+    if (mbr != NULL) {
+        if (mbr->mbr_boot_signature == 0xAA55) /* This is the only way to tell if its a valid MBR */
+            return 0;
+        else
+            fprintf(stderr, "The path provided does not point to a MBR structure (Boot signature missing) !");
+    }
+    return -1;
+}
+
+static short is_valid_partition(partitionEntry partition)
+{
+    if (partition.partition_number_of_sectors == 0 || partition.partition_lba_first_absolute_sector == 0)
+        return 1;
+    else
+        return 0;
     
-} __attribute__((packed));
-
-struct mbr_t {
-    uint8_t mbr_bootstrap_code[446];
-    partitionEntry partition1;
-    partitionEntry partition2;
-    partitionEntry partition3;
-    partitionEntry partition4;
-    uint16_t mbr_boot_signature;
-}__attribute__((packed));
+}
 
 MBR *read_mbr(const char *path)
 {
@@ -41,13 +43,12 @@ MBR *read_mbr(const char *path)
 
     bytes_read = read(mbr_fd, mbr, sizeof(MBR));
     if (bytes_read != sizeof(MBR)) {
-        fprintf(stderr, "Could not load the whole MBR structure. Is the path correctly pointing to a disk ?");
+        fprintf(stderr, "Could not load the whole MBR structure. Is the path correctly pointing to an MBR disk ?\n");
         free(mbr);
         return NULL;
     }
 
     if (check_boot_signature(mbr) != 0) {
-        fprintf(stderr, "The path provided does not point to a MBR structure (Boot signature missing) !");
         free(mbr);
         return NULL;
     }
@@ -62,9 +63,10 @@ short print_bootstrap_code(MBR *mbr, uint8_t show_addresses)
     uint8_t current_bytes[16];
     unsigned long i;
     unsigned long j;
-    int remaining_bytes = 0;
+    unsigned long remaining_bytes = 0;
 
-    if (mbr == NULL || check_boot_signature(mbr) != 0)
+    /* NULL pointer is also verified in the bellow function */
+    if (check_boot_signature(mbr) != 0)
         return -1;
     
     i = 0;
@@ -76,7 +78,7 @@ short print_bootstrap_code(MBR *mbr, uint8_t show_addresses)
         /* Copy the current 16 bytes into the array */
         memcpy(current_bytes, mbr->mbr_bootstrap_code, sizeof(current_bytes) - remaining_bytes);
         if (show_addresses)
-            printf("%08x: ", i);
+            printf("%08lx: ", i);
 
         /* Print the hexadecimal values of the 16 bytes array */
         for (j = 0; j < sizeof(current_bytes) - remaining_bytes; j++)
@@ -103,11 +105,103 @@ short print_bootstrap_code(MBR *mbr, uint8_t show_addresses)
     return 0;
 
 }
-static short check_boot_signature(MBR *mbr)
+
+void print_chs_first_absolute_sector(partitionEntry partition)
 {
-    if (mbr != NULL) {
-        if (mbr->mbr_boot_signature == 0xAA55) /* This is the only way to tell if its a valid MBR */
-            return 0;
+    printf("\tCylinder %d: \n", partition.partition_chs_first_absolute_sector[2]);
+    printf("\tHead : %d\n", partition.partition_chs_first_absolute_sector[0]);
+    printf("\tSector : %d\n", partition.partition_chs_first_absolute_sector[1]);
+    printf("\n");
+}
+
+void print_chs_last_absolute_sector(partitionEntry partition)
+{
+    printf("\tCylinder : %d\n", partition.partition_chs_last_absolute_sector[2]);
+    printf("\tHead : %d\n", partition.partition_chs_last_absolute_sector[0]);
+    printf("\tSector : %d\n", partition.partition_chs_last_absolute_sector[1]);
+    printf("\n");
+
+}
+short get_number_of_partition_entries(MBR *mbr)
+{
+    unsigned long i;
+    uint8_t valid_partition_count;
+
+
+    if (check_boot_signature(mbr) != 0) {
+        return -1;
     }
-    return -1;
+    
+    for (i = 0; i < MAX_PARTITION_COUNT; i++) {
+        if (is_valid_partition(*(&mbr->partition1 + (i*sizeof(partitionEntry)))) == 0)
+            valid_partition_count++;
+    }
+    
+    return valid_partition_count;
+}
+
+void print_partition_status(partitionEntry partition)
+{
+    printf("\tInactive(0x00) | Active(0x80) | Invalid (0x01-0x7F)\n");
+    printf("\tGot status : 0x%02x --> ", partition.partition_status);
+
+    if (partition.partition_status == 0)
+        printf("Inactive");
+    else if (partition.partition_status == 0x80)
+        printf("Active");
+    else
+        printf("Invalid");
+
+    printf("\n\n");
+}
+void print_lba_first_absolute_partition(partitionEntry partition)
+{
+    printf("\tLBA of the first absolute partition : %d\n", partition.partition_lba_first_absolute_sector);
+    printf("\n");
+}
+void print_partition_sector_count(partitionEntry partition)
+{
+    printf("\tSectors : %d\n", partition.partition_number_of_sectors);
+    printf("\n");
+}
+
+void print_partition_info(partitionEntry partition)
+{
+    printf("Partition status : \n\n");
+    print_partition_status(partition);
+    printf("CHS address of the first absolute sector in partition : \n\n");
+    print_chs_first_absolute_sector(partition);
+    printf("Partition Type : \n\n");
+    printf("CHS address of the last absolute sector in partition : \n\n");
+    print_chs_last_absolute_sector(partition);
+    printf("LBA of the first absolute sector in the partition : \n\n");
+    print_lba_first_absolute_partition(partition);
+    printf("Numbers of sectors in the partition : \n\n");
+    print_partition_sector_count(partition);
+    printf("\n\n");
+}
+
+void print_all_partition_info(MBR *mbr)
+{
+    uint8_t partition_number;
+    char title_buffer[50];
+
+    for (partition_number = 0; partition_number < MAX_PARTITION_COUNT; partition_number++) {
+        if (is_valid_partition(*(&mbr->partition1 + (partition_number*sizeof(partitionEntry)))) == 0) {
+            sprintf(title_buffer, "PARTITION NUMBER : %d", partition_number + 1); /* We want to start from partition 1 */
+            print_ascii_header(title_buffer);
+            print_partition_info(*(&mbr->partition1 + (partition_number*sizeof(partitionEntry))));
+        }
+    }
+}
+
+short print_whole_mbr(MBR *mbr)
+{
+    /* NULL pointer is also verified in the bellow function */
+    if (check_boot_signature(mbr) != 0)
+        return -1;
+    
+    print_ascii_header("BOOTSTRAP CODE : ");
+    print_bootstrap_code(mbr, 1);
+    print_all_partition_info(mbr);
 }
