@@ -187,7 +187,7 @@ void print_all_partition_info(MBR *mbr)
     char title_buffer[50];
 
     for (partition_number = 0; partition_number < MAX_PARTITION_COUNT; partition_number++) {
-        if (is_valid_partition(*(&mbr->partition1 + (partition_number*sizeof(partitionEntry)))) == 0) {
+        if (is_valid_partition(*(&mbr->partition1 + partition_number)) == 0) {
             sprintf(title_buffer, "PARTITION NUMBER : %d", partition_number + 1); /* We want to start from partition 1 */
             print_ascii_header(title_buffer);
             print_partition_info(*(&mbr->partition1 + (partition_number*sizeof(partitionEntry))));
